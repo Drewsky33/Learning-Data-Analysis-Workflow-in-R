@@ -1,0 +1,217 @@
+---
+title: "Building a Data Analysis Workflow"
+author: "Andrew Lujan"
+date: '2022-05-05'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+For this project, I will be acting as a data analyst for a company that sells books for learning programming. The company has produced a variety of books with each receiving quite a few reviews. 
+
+**The question:**
+The company wants me to check the sales data to see if I can extract any useful information from the data itself.
+
+
+To start with our project, first we need to import the packages we'll be using and also import the dataset that's available [Here](https://data.world/dataquest/book-reviews).
+
+```{r}
+## Import Packages
+library(tidyverse)
+reviews <- read_csv("/Users/drewsdesktop/Desktop/Data Science/DataQuest/R Data Analyst Path/book_reviews.csv")
+
+```
+
+
+
+## Getting Familiar with the Data 
+
+First, in our workflow we want to answer the following questions:
+
+1. How big is the dataset?
+2. What are the column names?
+3. What are the types of each columns?
+4. What are the unique values present in each of the columns
+
+```{r}
+## Checking the size of the dataset
+dim(reviews)
+
+## Checking the column names of the dataset
+colnames(reviews)
+
+## What are the types of each column
+### Using a for loop to answer this question
+for(c in colnames(reviews)) {
+  print(typeof(reviews[[c]]))
+}
+
+## What are the unique values present for each column?
+for (c in colnames(reviews)) {
+  print("Unique values in the column:")
+  print(c)
+  print(unique(reviews[[c]]))
+  print("")
+}
+```
+### Takeaways
+Coming back to the questions above:
+
+1. **How big is the dataset?**
+
+  * The dataset has 2,000 rows (observations) and 4 columns
+2. **What are the column names?**
+
+  * The column names are `book`, `review`, `state`, and `price`.
+3. **What are the types of each columns?**
+
+  * The column types are: character, character, character, and double respectively. 
+  
+4. **What are the unique values present in each of the columns**
+
+  * For `book`: "R Made Easy", " "R For Dummies", "Secrets Of R For Advanced Students" "Top 10 Mistakes R Beginners Make", "Fundamentals of R For Beginners"
+  * For `review`: "Excellent", "Fair", "Poor", "Great", NA, "Good"
+  * For `state`: "TX", "NY", "FL", "Texas", "California", "Florida", "CA", "New York"
+  * For `price`: 19.99 15.99 50.00 29.99 39.99
+  
+Most of the data contains strings. The book column tells the names of the books, the review columns tell the name of the name of the scores, the state has 2 letter state code in string form, and the price has a numerical value for the price of each book. 
+
+## Cleaning the Data
+There are few instances of missing data denoted with NA. We need to get rid of the missing data. We can use the `filter()` function and the `is.na()` function to remove some rows that have missing data. 
+
+```{r}
+
+## Viewing data
+
+view(reviews)
+
+## Creating a new dataframe with complete data
+complete_reviews <- reviews %>%
+  filter(!is.na(review)
+  )
+
+## Checking the dimensions of the new dataset
+dim(complete_reviews)
+
+```
+### Takeaways
+
+It looks like a little over 200 reviews were removed from the dataset. Something else I noticed was teh inconsistent formatting within the state column. For example California how two different labels for that column. What we want to do is get the formatting into the standard postal code format across the state column. 
+
+```{r}
+## Shortening the labels in the state column to just the postal code
+
+complete_reviews <- complete_reviews %>%
+  mutate(
+    state = case_when(
+      state == "California" ~ "CA",
+      state == "New York" ~ "NY",
+      state == "Texas" ~ "TX",
+      state == "Florida" ~ "FL",
+      TRUE ~ state # ignores cases when it's already a postal code
+    
+    )
+  )
+
+view(complete_reviews)
+
+```
+
+## Making some transformations to the review data
+Now that we've addressed the issues with formatting in the dataset, we're going to make some transformations to the review data. The goal is to evaluate the ratings of each stirng and provide a numerical value for them since we can't do much with a text version of the review score. 
+
+```{r}
+# Adding a new column with review integers
+
+complete_reviews <- complete_reviews %>%
+  mutate(
+    review_num = case_when(
+      review == "Poor" ~ 1,
+      review == "Fair" ~ 2,
+      review == "Good" ~ 3, 
+      review == "Great" ~ 4,
+      review == "Excellent" ~ 5
+    ), is_high_review = if_else( review_num >= 4, TRUE, FALSE)
+  )
+view(complete_reviews)
+```
+
+Our main question, is to determine which book is most profitable. So going forward we need to think how we define this. It could be the book that sells the most overall, or it can be a combination of those factors to see which book generates the most revenue overall. 
+
+## Analyzing the data
+
+In my opinion the most profitable book is the one that continues to leave the shelf at a high rate. Sure there are some books that might sell less, but have a higher value so they generate a higher profit, but for the sake of early exploration let's focus on simplicity. 
+
+Our process for this analysis will be to:
+1. Group the books by their name
+2. Summarize these and pass them into a new column called purchase
+3. Summing the total price column up, would also be interesting.
+
+```{r}
+
+complete_reviews %>%
+  group_by(book) %>%
+  summarize(
+    purchased = n()
+  ) %>%
+  arrange(-purchased)
+
+```
+
+It looks likes the book "Fundamentals of R For Beginners" had the most copies purchased, but overall these books seem to be purchased at the relatively same amounts which warrants a further analysis. I'll group each book and then sum their total prices to see which price is the highest overall. 
+
+```{r}
+
+complete_reviews %>%
+  group_by(book) %>%
+  summarize(
+    total_revenue = sum(price)
+  ) %>%
+  arrange(-total_revenue)
+
+
+```
+So it looks like the book that brought in the most money was "Secrets OF R For Advanced Students"
+which would make sense since the book sells for $50 per copy and sold for a total of 360 copies. The second placed book "Fundamentals of R for Beginners" sold for 39.99 per copy for 366 copies. That's a little more than 10 extra dollars in revenue for each copy for "Secretes of R". 
+
+
+## Exploring geographical relationships
+Another question we could ask is there are any relationships between the books sold and the state they are sold in. Maybe some books sell better in some states when compared to others. 
+
+To examine this we'll need to:
+1. Group by book
+2. Sum the total revenue
+3. Analyze each state?
+
+```{r}
+
+complete_reviews %>%
+  group_by(book, state) %>%
+  summarize(
+    total_revenue = sum(price)
+  ) %>% arrange(-total_revenue)
+
+```
+### Takeaways
+* It looks like the Secrets of R was most profitable in NY. 
+* Fundamentals of R was most profitable in CA.
+* Top 10 mistatkes R Beginners make was most profitable in NY. 
+* R made easy was most profitable in NY.
+* R for dummies was most profitable in CA. 
+
+Overall, the most profitable markets for books in R were NY and California. 
+
+## Conclusions
+
+We found that the most profitable book sold was "Secrets Of R For Advanced Students" and the most profitable markets were NY and CA. I'd recommend selling more copies of that book in NY, and in general keeping more copies in that market. 
+
+
+
+
+
