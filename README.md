@@ -23,4 +23,6 @@ The code for this project can be found here:
 
 ### Data
 
+The book_reviews dataset can be found here:
 
+[books_reviews](https://github.com/Drewsky33/Learning-Data-Analysis-Workflow-in-R/blob/main/book_reviews.csv)
